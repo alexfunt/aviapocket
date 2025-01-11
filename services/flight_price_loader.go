@@ -13,7 +13,6 @@ type FlightPriceLoader struct {
 	DB        *sql.DB
 }
 
-// NewFlightPriceLoader - создает экземпляр FlightPriceLoader.
 func NewFlightPriceLoader(apiClient *api.Api, db *sql.DB) *FlightPriceLoader {
 	return &FlightPriceLoader{
 		ApiClient: apiClient,
@@ -21,17 +20,30 @@ func NewFlightPriceLoader(apiClient *api.Api, db *sql.DB) *FlightPriceLoader {
 	}
 }
 
-// LoadFlightPrices - загружает рейсы из API и сохраняет их в базу данных.
-func (loader *FlightPriceLoader) LoadFlightPrices(origin, destination, departDate, returnDate, currency string) error {
-	// Получаем рейсы из API.
-	flights, err := loader.ApiClient.FetchAndCompareFlights(origin, destination, departDate, returnDate, currency)
+func (loader *FlightPriceLoader) LoadFlightPrices(flight models.Flight) error {
+
+	flights, err := loader.ApiClient.FetchAndCompareFlights(flight.Origin, flight.Destination, flight.DepartDate, flight.ReturnDate, "rub")
 	if err != nil {
 		return fmt.Errorf("failed to fetch flights: %w", err)
 	}
 
-	// Сохраняем каждый рейс в базу данных.
+	tx, err := loader.DB.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			_ = tx.Rollback()
+			panic(p)
+		} else if err != nil {
+			_ = tx.Rollback()
+		} else {
+			err = tx.Commit()
+		}
+	}()
+
 	for _, flight := range flights {
-		flightPrice := models.FlightPrice{
+		flightPrice := models.Flight{
 			Origin:      flight.Origin,
 			Destination: flight.Destination,
 			DepartDate:  flight.DepartDate,
@@ -46,18 +58,30 @@ func (loader *FlightPriceLoader) LoadFlightPrices(origin, destination, departDat
 				flightPrice.Origin, flightPrice.Destination, err)
 		}
 	}
+
 	return nil
 }
 
-// saveToDB - сохраняет информацию о рейсе в базу данных.
-func (loader *FlightPriceLoader) saveToDB(flight models.FlightPrice) error {
+func (loader *FlightPriceLoader) saveToDB(flight models.Flight) error {
+	log.Printf("Saving flight: %+v", flight)
+
+	if flight.ReturnDate == "" {
+		flight.ReturnDate = ""
+	}
+	if flight.Gate == "" {
+		flight.Gate = ""
+	}
+
 	_, err := loader.DB.Exec(
 		`INSERT INTO flight_prices 
-		 (origin, destination, depart_date, return_date, price, gate, found_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
-		 ON CONFLICT DO NOTHING`, // Предотвращает дублирование записей.
+         (origin, destination, depart_date, return_date, price, gate, found_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT DO NOTHING`,
 		flight.Origin, flight.Destination, flight.DepartDate, flight.ReturnDate,
-		flight.Price, flight.Gate, flight.FoundAt, // Это уже строка в нужном формате.
+		flight.Price, flight.Gate, flight.FoundAt,
 	)
+	if err != nil {
+		log.Printf("Error saving flight: %v", err)
+	}
 	return err
 }

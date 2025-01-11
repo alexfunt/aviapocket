@@ -9,6 +9,10 @@ import (
 	_ "github.com/lib/pq"
 )
 
+type DB struct {
+	Connection *sql.DB
+}
+
 func Connect() (*sql.DB, error) {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {

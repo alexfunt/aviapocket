@@ -4,20 +4,22 @@ import (
 	"aviapocket/api"
 	"aviapocket/db"
 	"aviapocket/services"
-	"fmt"
+	"aviapocket/web"
+	_ "fmt"
 	"log"
+	"os"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 func main() {
-	client := api.NewClient("1f9498bff1444abf819c027acbd3f4d9")
-	similarFlights, err := client.FetchAndCompareFlights("LED", "CEK", "2025-01-12", "2025-01-26", "rub")
-	if err != nil {
-		log.Fatalf("Error fetching and comparing flights: %v", err)
+
+	apiKey := os.Getenv("AVIASALES_API_KEY")
+	if apiKey == "" {
+		log.Fatalf("API key is missing")
 	}
 
-	for _, flight := range similarFlights {
-		fmt.Printf("Flight: %+v\n", flight)
-	}
+	client := api.NewClient(apiKey)
 
 	database, err := db.Connect()
 	if err != nil {
@@ -26,9 +28,19 @@ func main() {
 	defer database.Close()
 
 	loader := services.NewFlightPriceLoader(client, database)
-	if err := loader.LoadFlightPrices("LED", "CEK", "2025-01-12", "2025-01-26", "rub"); err != nil {
-		log.Fatalf("Failed to load flight prices: %v", err)
+
+	flightHandler := web.NewFlightHandler(loader)
+
+	app := fiber.New()
+	web.SetupRouter(app, flightHandler)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "3000"
 	}
 
-	log.Println("Flight prices loaded successfully")
+	log.Printf("Starting server on port %s", port)
+	if err := app.Listen(":" + port); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
 }
