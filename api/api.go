@@ -25,7 +25,6 @@ func NewClient(apiKey string) *Api {
 	}
 }
 
-// Flight - структура для представления рейса.
 type Flight struct {
 	Origin      string    `json:"origin"`
 	Destination string    `json:"destination"`
@@ -36,7 +35,6 @@ type Flight struct {
 	FoundAt     time.Time `json:"found_at"`
 }
 
-// GetFlights - получает данные о рейсах по параметрам.
 func (c *Api) GetFlights(params map[string]string) ([]Flight, error) {
 	if params["origin"] == "" && params["destination"] == "" {
 		return nil, errors.New("either origin or destination must be provided")
@@ -94,18 +92,15 @@ func (c *Api) GetFlights(params map[string]string) ([]Flight, error) {
 	return flights, nil
 }
 
-// CompareFlights - сравнивает рейсы на схожесть.
 func CompareFlights(originFlights, destinationFlights []Flight) []Flight {
 	flightMap := make(map[string]Flight)
 	var similarFlights []Flight
 
-	// Добавляем рейсы с `origin` в карту.
 	for _, flight := range originFlights {
 		key := fmt.Sprintf("%s-%s-%s", flight.Origin, flight.Destination, flight.DepartDate)
 		flightMap[key] = flight
 	}
 
-	// Сравниваем рейсы с `destination` на схожесть.
 	for _, flight := range destinationFlights {
 		key := fmt.Sprintf("%s-%s-%s", flight.Origin, flight.Destination, flight.DepartDate)
 		if _, exists := flightMap[key]; exists {
@@ -116,7 +111,6 @@ func CompareFlights(originFlights, destinationFlights []Flight) []Flight {
 	return similarFlights
 }
 
-// FetchAndCompareFlights - основная функция получения и сравнения рейсов.
 func (c *Api) FetchAndCompareFlights(origin, destination, departDate, returnDate, currency string) ([]Flight, error) {
 	originFlights, err := c.GetFlights(map[string]string{
 		"origin":      origin,

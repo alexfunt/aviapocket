@@ -1,6 +1,6 @@
 package models
 
-type FlightPrice struct {
+type Flight struct {
 	Origin      string
 	Destination string
 	DepartDate  string
